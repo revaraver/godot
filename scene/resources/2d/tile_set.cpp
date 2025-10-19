@@ -1278,14 +1278,15 @@ Array TileSet::get_alternative_level_tile_proxies() const {
 
 Array TileSet::map_tile_proxy(int p_source_from, Vector2i p_coords_from, int p_alternative_from) const {
 	Array from = { p_source_from, p_coords_from, p_alternative_from };
-
-	// Check if the tile is valid, and if so, don't map the tile and return the input.
-	if (has_source(p_source_from)) {
-		Ref<TileSetSource> source = get_source(p_source_from);
-		if (source->has_tile(p_coords_from) && source->has_alternative_tile(p_coords_from, p_alternative_from)) {
-			return from;
-		}
-	}
+	
+	//注释掉这种导致成为烂功能的栏代码
+	// // Check if the tile is valid, and if so, don't map the tile and return the input.
+	// if (has_source(p_source_from)) {
+	// 	Ref<TileSetSource> source = get_source(p_source_from);
+	// 	if (source->has_tile(p_coords_from) && source->has_alternative_tile(p_coords_from, p_alternative_from)) {
+	// 		return from;
+	// 	}
+	// }
 
 	// Source, coords and alternative match.
 	if (alternative_level_proxies.has(from)) {
