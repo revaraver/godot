@@ -6199,7 +6199,8 @@ void DisplayServerWindows::_process_key_events() {
 		switch (ke.uMsg) {
 			case WM_CHAR: {
 				// Extended keys should only be processed as WM_KEYDOWN message.
-				if (!KeyMappingWindows::is_extended_key(ke.wParam) && ((i == 0 && ke.uMsg == WM_CHAR) || (i > 0 && key_event_buffer[i - 1].uMsg == WM_CHAR))) {
+				UINT vk = MapVirtualKey((ke.lParam >> 16) & 0xFF, MAPVK_VSC_TO_VK);
+				if (!KeyMappingWindows::is_extended_key(vk) && ((i == 0 && ke.uMsg == WM_CHAR) || (i > 0 && key_event_buffer[i - 1].uMsg == WM_CHAR))) {
 					static char32_t prev_wc = 0;
 					char32_t unicode = ke.wParam;
 					if ((unicode & 0xfffffc00) == 0xd800) {
@@ -6221,7 +6222,6 @@ void DisplayServerWindows::_process_key_events() {
 					Ref<InputEventKey> k;
 					k.instantiate();
 
-					UINT vk = MapVirtualKey((ke.lParam >> 16) & 0xFF, MAPVK_VSC_TO_VK);
 					bool is_oem = (vk >= 0xB8) && (vk <= 0xE6);
 					Key keycode = KeyMappingWindows::get_keysym(vk);
 					Key key_label = keycode;
