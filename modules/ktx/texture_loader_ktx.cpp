@@ -32,7 +32,9 @@
 
 #include "core/io/file_access.h"
 #include "core/io/file_access_memory.h"
+#include "core/object/class_db.h"
 #include "scene/resources/image_texture.h"
+#include "scene/resources/texture.h"
 #include "servers/rendering/rendering_server.h"
 
 #include <ktx.h>
@@ -602,7 +604,7 @@ bool ResourceFormatKTX::handles_type(const String &p_type) const {
 }
 
 String ResourceFormatKTX::get_resource_type(const String &p_path) const {
-	if (p_path.get_extension().to_lower() == "ktx" || p_path.get_extension().to_lower() == "ktx2") {
+	if (p_path.has_extension("ktx") || p_path.has_extension("ktx2")) {
 		return "ImageTexture";
 	}
 	return "";

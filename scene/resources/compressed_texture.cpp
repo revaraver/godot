@@ -31,7 +31,9 @@
 #include "compressed_texture.h"
 
 #include "core/io/file_access.h"
+#include "core/object/class_db.h"
 #include "scene/resources/bit_map.h"
+#include "servers/rendering/rendering_server.h"
 
 Error CompressedTexture2D::_load_data(const String &p_path, int &r_width, int &r_height, Ref<Image> &image, bool &r_request_3d, bool &r_request_normal, bool &r_request_roughness, int &mipmap_limit, int p_size_limit) {
 	alpha_cache.unref();
@@ -104,7 +106,7 @@ void CompressedTexture2D::_requested_3d(void *p_ud) {
 	request_3d_callback(ctex);
 }
 
-void CompressedTexture2D::_requested_roughness(void *p_ud, const String &p_normal_path, RS::TextureDetectRoughnessChannel p_roughness_channel) {
+void CompressedTexture2D::_requested_roughness(void *p_ud, const String &p_normal_path, RSE::TextureDetectRoughnessChannel p_roughness_channel) {
 	CompressedTexture2D *ct = (CompressedTexture2D *)p_ud;
 	Ref<CompressedTexture2D> ctex(ct);
 	ERR_FAIL_NULL(request_roughness_callback);
@@ -486,7 +488,7 @@ bool ResourceFormatLoaderCompressedTexture2D::handles_type(const String &p_type)
 }
 
 String ResourceFormatLoaderCompressedTexture2D::get_resource_type(const String &p_path) const {
-	if (p_path.get_extension().to_lower() == "ctex") {
+	if (p_path.has_extension("ctex")) {
 		return "CompressedTexture2D";
 	}
 	return "";
@@ -670,7 +672,7 @@ bool ResourceFormatLoaderCompressedTexture3D::handles_type(const String &p_type)
 }
 
 String ResourceFormatLoaderCompressedTexture3D::get_resource_type(const String &p_path) const {
-	if (p_path.get_extension().to_lower() == "ctex3d") {
+	if (p_path.has_extension("ctex3d")) {
 		return "CompressedTexture3D";
 	}
 	return "";
@@ -743,10 +745,10 @@ Error CompressedTextureLayered::load(const String &p_path) {
 	}
 
 	if (texture.is_valid()) {
-		RID new_texture = RS::get_singleton()->texture_2d_layered_create(images, RS::TextureLayeredType(layered_type));
+		RID new_texture = RS::get_singleton()->texture_2d_layered_create(images, RSE::TextureLayeredType(layered_type));
 		RS::get_singleton()->texture_replace(texture, new_texture);
 	} else {
-		texture = RS::get_singleton()->texture_2d_layered_create(images, RS::TextureLayeredType(layered_type));
+		texture = RS::get_singleton()->texture_2d_layered_create(images, RSE::TextureLayeredType(layered_type));
 	}
 
 	w = images[0]->get_width();
@@ -793,7 +795,7 @@ TextureLayered::LayeredType CompressedTextureLayered::get_layered_type() const {
 
 RID CompressedTextureLayered::get_rid() const {
 	if (!texture.is_valid()) {
-		texture = RS::get_singleton()->texture_2d_layered_placeholder_create(RS::TextureLayeredType(layered_type));
+		texture = RS::get_singleton()->texture_2d_layered_placeholder_create(RSE::TextureLayeredType(layered_type));
 	}
 	return texture;
 }
@@ -844,15 +846,15 @@ CompressedTextureLayered::~CompressedTextureLayered() {
 
 Ref<Resource> ResourceFormatLoaderCompressedTextureLayered::load(const String &p_path, const String &p_original_path, Error *r_error, bool p_use_sub_threads, float *r_progress, CacheMode p_cache_mode) {
 	Ref<CompressedTextureLayered> ct;
-	if (p_path.get_extension().to_lower() == "ctexarray") {
+	if (p_path.has_extension("ctexarray")) {
 		Ref<CompressedTexture2DArray> c;
 		c.instantiate();
 		ct = c;
-	} else if (p_path.get_extension().to_lower() == "ccube") {
+	} else if (p_path.has_extension("ccube")) {
 		Ref<CompressedCubemap> c;
 		c.instantiate();
 		ct = c;
-	} else if (p_path.get_extension().to_lower() == "ccubearray") {
+	} else if (p_path.has_extension("ccubearray")) {
 		Ref<CompressedCubemapArray> c;
 		c.instantiate();
 		ct = c;
@@ -884,13 +886,13 @@ bool ResourceFormatLoaderCompressedTextureLayered::handles_type(const String &p_
 }
 
 String ResourceFormatLoaderCompressedTextureLayered::get_resource_type(const String &p_path) const {
-	if (p_path.get_extension().to_lower() == "ctexarray") {
+	if (p_path.has_extension("ctexarray")) {
 		return "CompressedTexture2DArray";
 	}
-	if (p_path.get_extension().to_lower() == "ccube") {
+	if (p_path.has_extension("ccube")) {
 		return "CompressedCubemap";
 	}
-	if (p_path.get_extension().to_lower() == "ccubearray") {
+	if (p_path.has_extension("ccubearray")) {
 		return "CompressedCubemapArray";
 	}
 	return "";

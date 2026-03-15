@@ -32,7 +32,7 @@
 
 #include "core/io/resource.h"
 #include "core/templates/lru.h"
-#include "scene/resources/texture.h"
+#include "core/variant/typed_array.h"
 #include "servers/text/text_server.h"
 
 class TextLine;
@@ -204,6 +204,10 @@ class FontFile : public Font {
 	TextServer::SubpixelPositioning subpixel_positioning = TextServer::SUBPIXEL_POSITIONING_AUTO;
 	bool keep_rounding_remainders = true;
 	double oversampling_override = 0.0;
+
+	HashMap<String, bool> language_support_overrides;
+	HashMap<String, bool> script_support_overrides;
+	Dictionary feature_overrides;
 
 #ifndef DISABLE_DEPRECATED
 	real_t bmp_height = 0.0;

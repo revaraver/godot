@@ -30,8 +30,8 @@
 
 #pragma once
 
-#include "core/core_string_names.h"
-#include "core/input/input_enums.h"
+#include "core/core_string_names.h" // IWYU pragma: export. Make available everywhere.
+#include "core/error/error_macros.h"
 #include "core/io/ip_address.h"
 #include "core/math/aabb.h"
 #include "core/math/basis.h"
@@ -51,13 +51,13 @@
 #include "core/math/vector4.h"
 #include "core/math/vector4i.h"
 #include "core/object/object_id.h"
-#include "core/os/keyboard.h"
 #include "core/string/node_path.h"
 #include "core/string/ustring.h"
 #include "core/templates/bit_field.h"
+#include "core/templates/hashfuncs.h"
 #include "core/templates/list.h"
-#include "core/templates/paged_allocator.h"
 #include "core/templates/rid.h"
+#include "core/typedefs.h"
 #include "core/variant/array.h"
 #include "core/variant/callable.h"
 #include "core/variant/dictionary.h"
@@ -70,6 +70,10 @@ template <typename T>
 class Ref;
 template <typename T>
 class BitField;
+template <typename T>
+class TypedArray;
+template <typename K, typename V>
+class TypedDictionary;
 
 struct PropertyInfo;
 struct MethodInfo;
@@ -147,30 +151,6 @@ public:
 	};
 
 private:
-	struct Pools {
-		union BucketSmall {
-			BucketSmall() {}
-			~BucketSmall() {}
-			Transform2D _transform2d;
-			::AABB _aabb;
-		};
-		union BucketMedium {
-			BucketMedium() {}
-			~BucketMedium() {}
-			Basis _basis;
-			Transform3D _transform3d;
-		};
-		union BucketLarge {
-			BucketLarge() {}
-			~BucketLarge() {}
-			Projection _projection;
-		};
-
-		static PagedAllocator<BucketSmall, true> _bucket_small;
-		static PagedAllocator<BucketMedium, true> _bucket_medium;
-		static PagedAllocator<BucketLarge, true> _bucket_large;
-	};
-
 	friend struct _VariantCall;
 	friend class VariantInternal;
 	template <typename>
@@ -432,10 +412,12 @@ public:
 	operator int32_t() const;
 	operator int16_t() const;
 	operator int8_t() const;
+	operator Math::int_alt_t() const;
 	operator uint64_t() const;
 	operator uint32_t() const;
 	operator uint16_t() const;
 	operator uint8_t() const;
+	operator Math::uint_alt_t() const;
 
 	operator ObjectID() const;
 
@@ -495,6 +477,10 @@ public:
 	_FORCE_INLINE_ operator T() const { return static_cast<T>(operator int64_t()); }
 	template <typename T>
 	_FORCE_INLINE_ operator BitField<T>() const { return static_cast<T>(operator uint64_t()); }
+	template <typename T>
+	_FORCE_INLINE_ operator TypedArray<T>() const { return operator Array(); }
+	template <typename K, typename V>
+	_FORCE_INLINE_ operator TypedDictionary<K, V>() const { return operator Dictionary(); }
 
 	Object *get_validated_object() const;
 	Object *get_validated_object_with_check(bool &r_previously_freed) const;
@@ -504,10 +490,12 @@ public:
 	Variant(int32_t p_int32);
 	Variant(int16_t p_int16);
 	Variant(int8_t p_int8);
+	Variant(Math::int_alt_t p_int_alt);
 	Variant(uint64_t p_uint64);
 	Variant(uint32_t p_uint32);
 	Variant(uint16_t p_uint16);
 	Variant(uint8_t p_uint8);
+	Variant(Math::uint_alt_t p_uint_alt);
 	Variant(float p_float);
 	Variant(double p_double);
 	Variant(const ObjectID &p_id);
@@ -565,6 +553,12 @@ public:
 	template <typename T>
 	_FORCE_INLINE_ Variant(BitField<T> p_bitfield) :
 			Variant(static_cast<uint64_t>(p_bitfield)) {}
+	template <typename T>
+	_FORCE_INLINE_ Variant(const TypedArray<T> &p_typed_array) :
+			Variant(static_cast<const Array &>(p_typed_array)) {}
+	template <typename K, typename V>
+	_FORCE_INLINE_ Variant(const TypedDictionary<K, V> &p_typed_dictionary) :
+			Variant(static_cast<const Dictionary &>(p_typed_dictionary)) {}
 
 	// If this changes the table in variant_op must be updated
 	enum Operator {
@@ -631,6 +625,7 @@ public:
 
 	static ValidatedBuiltInMethod get_validated_builtin_method(Variant::Type p_type, const StringName &p_method);
 	static PTRBuiltInMethod get_ptr_builtin_method(Variant::Type p_type, const StringName &p_method);
+	static PTRBuiltInMethod get_ptr_builtin_method_with_compatibility(Variant::Type p_type, const StringName &p_method, uint32_t p_hash);
 
 	static MethodInfo get_builtin_method_info(Variant::Type p_type, const StringName &p_method);
 	static int get_builtin_method_argument_count(Variant::Type p_type, const StringName &p_method);
@@ -645,6 +640,7 @@ public:
 	static void get_builtin_method_list(Variant::Type p_type, List<StringName> *p_list);
 	static int get_builtin_method_count(Variant::Type p_type);
 	static uint32_t get_builtin_method_hash(Variant::Type p_type, const StringName &p_method);
+	static Vector<uint32_t> get_builtin_method_compatibility_hashes(Variant::Type p_type, const StringName &p_method);
 
 	void callp(const StringName &p_method, const Variant **p_args, int p_argcount, Variant &r_ret, Callable::CallError &r_error);
 
@@ -819,11 +815,13 @@ public:
 	static void get_utility_function_list(List<StringName> *r_functions);
 	static int get_utility_function_count();
 
-	//argsVariant call()
+	[[nodiscard]] bool operator==(const Variant &p_variant) const;
+	[[nodiscard]] bool operator<(const Variant &p_variant) const;
+	[[nodiscard]] _ALWAYS_INLINE_ bool operator!=(const Variant &p_variant) const { return !(*this == p_variant); }
+	[[nodiscard]] _ALWAYS_INLINE_ bool operator<=(const Variant &p_variant) const { return !(p_variant < *this); }
+	[[nodiscard]] _ALWAYS_INLINE_ bool operator>(const Variant &p_variant) const { return p_variant < *this; }
+	[[nodiscard]] _ALWAYS_INLINE_ bool operator>=(const Variant &p_variant) const { return !(*this < p_variant); }
 
-	bool operator==(const Variant &p_variant) const;
-	bool operator!=(const Variant &p_variant) const;
-	bool operator<(const Variant &p_variant) const;
 	uint32_t hash() const;
 	uint32_t recursive_hash(int recursion_count) const;
 

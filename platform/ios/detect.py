@@ -25,6 +25,7 @@ def get_opts():
 
     return [
         ("vulkan_sdk_path", "Path to the Vulkan SDK", ""),
+        ("SWIFT_FRONTEND", "Path to the swift-frontend binary", ""),
         # APPLE_TOOLCHAIN_PATH Example: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain
         (("APPLE_TOOLCHAIN_PATH", "IOS_TOOLCHAIN_PATH"), "Path to the Apple toolchain", ""),
         (("APPLE_SDK_PATH", "IOS_SDK_PATH"), "Path to the iOS SDK", ""),
@@ -112,6 +113,8 @@ def configure(env: "SConsEnvironment"):
         env.Append(CCFLAGS=["-miphoneos-version-min=14.0"])
     detect_darwin_sdk_path(env["APPLE_PLATFORM"], env)
 
+    env.Append(CCFLAGS=["-ffp-contract=off"])
+
     if env["arch"] == "x86_64":
         if not env["simulator"]:
             print_error("Building for iOS with 'arch=x86_64' requires 'simulator=yes'.")
@@ -180,3 +183,10 @@ def configure(env: "SConsEnvironment"):
                 "$APPLE_SDK_PATH/System/Library/Frameworks/OpenGLES.framework/Headers",
             ]
         )
+
+    if env["sdl"]:
+        if env["builtin_sdl"]:
+            env.Append(CPPDEFINES=["SDL_ENABLED"])
+        else:
+            print_warning("`builtin_sdl` was explicitly disabled. Disabling SDL input driver support.")
+            env["sdl"] = False

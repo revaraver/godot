@@ -64,8 +64,6 @@ class Polygon3DEditor : public HBoxContainer {
 	MeshInstance3D *pointsm = nullptr;
 	Ref<ArrayMesh> m;
 
-	MenuButton *options = nullptr;
-
 	int edited_point = 0;
 	Vector2 edited_point_pos;
 	PackedVector2Array pre_move_edit;
@@ -104,7 +102,6 @@ public:
 	virtual EditorPlugin::AfterGUIInput forward_3d_gui_input(Camera3D *p_camera, const Ref<InputEvent> &p_event) override { return polygon_editor->forward_3d_gui_input(p_camera, p_event); }
 
 	virtual String get_plugin_name() const override { return "Polygon3DEditor"; }
-	bool has_main_screen() const override { return false; }
 	virtual void edit(Object *p_object) override;
 	virtual bool handles(Object *p_object) const override;
 	virtual void make_visible(bool p_visible) override;

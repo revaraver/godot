@@ -33,11 +33,11 @@
 #include "editor/editor_node.h"
 #include "editor/inspector/editor_properties.h"
 #include "editor/plugins/editor_plugin.h"
-
 #include "scene/3d/skeleton_3d.h"
 #include "scene/gui/box_container.h"
 #include "scene/gui/color_rect.h"
 #include "scene/gui/dialogs.h"
+#include "scene/gui/texture_button.h"
 #include "scene/resources/bone_map.h"
 #include "scene/resources/texture.h"
 
@@ -78,7 +78,6 @@ public:
 class BoneMapperItem : public VBoxContainer {
 	GDCLASS(BoneMapperItem, VBoxContainer);
 
-	int button_id = -1;
 	StringName profile_bone_name;
 
 	Ref<BoneMap> bone_map;

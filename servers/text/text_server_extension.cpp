@@ -30,6 +30,8 @@
 
 #include "text_server_extension.h"
 
+#include "core/object/class_db.h" // IWYU pragma: keep. `GDVIRTUAL_BIND` macro.
+
 void TextServerExtension::_bind_methods() {
 	GDVIRTUAL_BIND(_has_feature, "feature");
 	GDVIRTUAL_BIND(_get_name);
@@ -43,6 +45,7 @@ void TextServerExtension::_bind_methods() {
 	GDVIRTUAL_BIND(_get_support_data_info);
 	GDVIRTUAL_BIND(_save_support_data, "filename");
 	GDVIRTUAL_BIND(_get_support_data);
+	GDVIRTUAL_BIND(_is_locale_using_support_data, "locale");
 
 	GDVIRTUAL_BIND(_is_locale_right_to_left, "locale");
 
@@ -252,6 +255,7 @@ void TextServerExtension::_bind_methods() {
 	GDVIRTUAL_BIND(_create_shaped_text, "direction", "orientation");
 
 	GDVIRTUAL_BIND(_shaped_text_clear, "shaped");
+	GDVIRTUAL_BIND(_shaped_text_duplicate, "shaped");
 
 	GDVIRTUAL_BIND(_shaped_text_set_direction, "shaped", "direction");
 	GDVIRTUAL_BIND(_shaped_text_get_direction, "shaped");
@@ -280,6 +284,7 @@ void TextServerExtension::_bind_methods() {
 	GDVIRTUAL_BIND(_shaped_text_add_string, "shaped", "text", "fonts", "size", "opentype_features", "language", "meta");
 	GDVIRTUAL_BIND(_shaped_text_add_object, "shaped", "key", "size", "inline_align", "length", "baseline");
 	GDVIRTUAL_BIND(_shaped_text_resize_object, "shaped", "key", "size", "inline_align", "baseline");
+	GDVIRTUAL_BIND(_shaped_text_has_object, "shaped", "key");
 	GDVIRTUAL_BIND(_shaped_get_text, "shaped");
 
 	GDVIRTUAL_BIND(_shaped_get_span_count, "shaped");
@@ -292,6 +297,7 @@ void TextServerExtension::_bind_methods() {
 	GDVIRTUAL_BIND(_shaped_get_run_count, "shaped");
 	GDVIRTUAL_BIND(_shaped_get_run_text, "shaped", "index");
 	GDVIRTUAL_BIND(_shaped_get_run_range, "shaped", "index");
+	GDVIRTUAL_BIND(_shaped_get_run_glyph_range, "shaped", "index");
 	GDVIRTUAL_BIND(_shaped_get_run_font_rid, "shaped", "index");
 	GDVIRTUAL_BIND(_shaped_get_run_font_size, "shaped", "index");
 	GDVIRTUAL_BIND(_shaped_get_run_language, "shaped", "index");
@@ -363,9 +369,11 @@ void TextServerExtension::_bind_methods() {
 	GDVIRTUAL_BIND(_shaped_text_prev_character_pos, "shaped", "pos");
 	GDVIRTUAL_BIND(_shaped_text_closest_character_pos, "shaped", "pos");
 
+#ifndef DISABLE_DEPRECATED
 	GDVIRTUAL_BIND(_format_number, "number", "language");
 	GDVIRTUAL_BIND(_parse_number, "number", "language");
 	GDVIRTUAL_BIND(_percent_sign, "language");
+#endif
 
 	GDVIRTUAL_BIND(_strip_diacritics, "string");
 	GDVIRTUAL_BIND(_is_valid_identifier, "string");
@@ -441,6 +449,12 @@ bool TextServerExtension::save_support_data(const String &p_filename) const {
 PackedByteArray TextServerExtension::get_support_data() const {
 	PackedByteArray ret;
 	GDVIRTUAL_CALL(_get_support_data, ret);
+	return ret;
+}
+
+bool TextServerExtension::is_locale_using_support_data(const String &p_locale) const {
+	bool ret = false;
+	GDVIRTUAL_CALL(_is_locale_using_support_data, p_locale, ret);
 	return ret;
 }
 
@@ -1148,6 +1162,12 @@ void TextServerExtension::shaped_text_clear(const RID &p_shaped) {
 	GDVIRTUAL_CALL(_shaped_text_clear, p_shaped);
 }
 
+RID TextServerExtension::shaped_text_duplicate(const RID &p_shaped) {
+	RID ret;
+	GDVIRTUAL_CALL(_shaped_text_duplicate, p_shaped, ret);
+	return ret;
+}
+
 void TextServerExtension::shaped_text_set_direction(const RID &p_shaped, TextServer::Direction p_direction) {
 	GDVIRTUAL_CALL(_shaped_text_set_direction, p_shaped, p_direction);
 }
@@ -1246,6 +1266,12 @@ bool TextServerExtension::shaped_text_resize_object(const RID &p_shaped, const V
 	return ret;
 }
 
+bool TextServerExtension::shaped_text_has_object(const RID &p_shaped, const Variant &p_key) const {
+	bool ret = false;
+	GDVIRTUAL_CALL(_shaped_text_has_object, p_shaped, p_key, ret);
+	return ret;
+}
+
 String TextServerExtension::shaped_get_text(const RID &p_shaped) const {
 	String ret;
 	GDVIRTUAL_CALL(_shaped_get_text, p_shaped, ret);
@@ -1301,6 +1327,12 @@ String TextServerExtension::shaped_get_run_text(const RID &p_shaped, int64_t p_i
 Vector2i TextServerExtension::shaped_get_run_range(const RID &p_shaped, int64_t p_index) const {
 	Vector2i ret;
 	GDVIRTUAL_CALL(_shaped_get_run_range, p_shaped, p_index, ret);
+	return ret;
+}
+
+Vector2i TextServerExtension::shaped_get_run_glyph_range(const RID &p_shaped, int64_t p_index) const {
+	Vector2i ret;
+	GDVIRTUAL_CALL(_shaped_get_run_glyph_range, p_shaped, p_index, ret);
 	return ret;
 }
 
@@ -1638,12 +1670,13 @@ int64_t TextServerExtension::shaped_text_closest_character_pos(const RID &p_shap
 	return TextServer::shaped_text_closest_character_pos(p_shaped, p_pos);
 }
 
+#ifndef DISABLE_DEPRECATED
 String TextServerExtension::format_number(const String &p_string, const String &p_language) const {
 	String ret;
 	if (GDVIRTUAL_CALL(_format_number, p_string, p_language, ret)) {
 		return ret;
 	}
-	return p_string;
+	return TextServer::format_number(p_string, p_language);
 }
 
 String TextServerExtension::parse_number(const String &p_string, const String &p_language) const {
@@ -1651,14 +1684,17 @@ String TextServerExtension::parse_number(const String &p_string, const String &p
 	if (GDVIRTUAL_CALL(_parse_number, p_string, p_language, ret)) {
 		return ret;
 	}
-	return p_string;
+	return TextServer::parse_number(p_string, p_language);
 }
 
 String TextServerExtension::percent_sign(const String &p_language) const {
 	String ret = "%";
-	GDVIRTUAL_CALL(_percent_sign, p_language, ret);
-	return ret;
+	if (GDVIRTUAL_CALL(_percent_sign, p_language, ret)) {
+		return ret;
+	}
+	return TextServer::percent_sign(p_language);
 }
+#endif // DISABLE_DEPRECATED
 
 bool TextServerExtension::is_valid_identifier(const String &p_string) const {
 	bool ret;

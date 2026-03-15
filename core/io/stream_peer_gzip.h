@@ -32,8 +32,6 @@
 
 #include "core/io/stream_peer.h"
 
-#include "core/core_bind.h"
-#include "core/io/compression.h"
 #include "core/templates/ring_buffer.h"
 
 class StreamPeerGZIP : public StreamPeer {
@@ -68,6 +66,5 @@ public:
 
 	virtual int get_available_bytes() const override;
 
-	StreamPeerGZIP();
 	~StreamPeerGZIP();
 };

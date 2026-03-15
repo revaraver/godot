@@ -34,7 +34,10 @@
 
 #include "core/math/geometry_2d.h"
 #include "core/math/random_pcg.h"
+#include "core/object/callable_mp.h"
+#include "core/object/class_db.h"
 #include "core/os/keyboard.h"
+#include "scene/main/scene_tree.h"
 
 #include "editor/editor_node.h"
 #include "editor/editor_string_names.h"
@@ -51,6 +54,7 @@
 #include "scene/gui/spin_box.h"
 
 #include "servers/navigation_2d/navigation_server_2d.h"
+#include "servers/rendering/rendering_server.h"
 
 void TileDataEditor::_tile_set_changed_plan_update() {
 	_tile_set_changed_update_needed = true;
@@ -1887,7 +1891,7 @@ void TileDataTerrainsEditor::_update_terrain_selector() {
 
 		// Kind of a hack to set icons.
 		// We could provide a way to modify that in the EditorProperty.
-		OptionButton *option_button = Object::cast_to<OptionButton>(terrain_property_editor->get_child(0));
+		OptionButton *option_button = terrain_property_editor->get_option_button();
 		for (int terrain = 0; terrain < tile_set->get_terrains_count(terrain_set); terrain++) {
 			option_button->set_item_icon(terrain + 1, icons[terrain_set][terrain]);
 		}
