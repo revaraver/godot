@@ -4988,6 +4988,10 @@ String TextEdit::get_word(int p_line, int p_column) const {
 }
 
 Point2i TextEdit::get_line_column_at_pos(const Point2i &p_pos, bool p_clamp_line, bool p_clamp_column) const {
+	// If IME is active, return current cursor position directly to prevent crash.
+	if (has_ime_text()) {
+		return Point2i(get_caret_column(), get_caret_line());
+	}
 	Ref<StyleBox> style = _get_current_stylebox();
 	float rows = p_pos.y - (style->get_margin(SIDE_TOP) + (theme_cache.line_spacing / 2));
 	rows /= get_line_height();
