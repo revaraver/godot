@@ -315,6 +315,10 @@ private:
 
 	void _apply_project_settings();
 
+	bool revar_ime_code_completion_deferred_pending = false;
+	bool revar_ime_code_completion_deferred_force = false;
+	void _request_revar_ime_code_completion_deferred();
+
 protected:
 	void _notification(int p_what);
 	static void _bind_methods();
@@ -488,6 +492,7 @@ public:
 	String get_text_for_code_completion() const;
 
 	void request_code_completion(bool p_force = false);
+	void request_revar_ime_code_completion_deferred(bool p_force = false);
 
 	void add_code_completion_option(CodeCompletionKind p_type, const String &p_display_text, const String &p_insert_text, const Color &p_text_color = Color(1, 1, 1), const Ref<Resource> &p_icon = Ref<Resource>(), const Variant &p_value = Variant(), int p_location = LOCATION_OTHER);
 	void update_code_completion_options(bool p_forced = false);

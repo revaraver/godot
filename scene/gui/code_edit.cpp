@@ -2292,6 +2292,22 @@ void CodeEdit::request_code_completion(bool p_force) {
 	}
 }
 
+void CodeEdit::_request_revar_ime_code_completion_deferred() {
+	revar_ime_code_completion_deferred_pending = false;
+	const bool force = revar_ime_code_completion_deferred_force;
+	revar_ime_code_completion_deferred_force = false;
+	request_code_completion(force);
+}
+
+void CodeEdit::request_revar_ime_code_completion_deferred(bool p_force) {
+	revar_ime_code_completion_deferred_force = revar_ime_code_completion_deferred_force || p_force;
+	if (revar_ime_code_completion_deferred_pending) {
+		return;
+	}
+	revar_ime_code_completion_deferred_pending = true;
+	callable_mp(this, &CodeEdit::_request_revar_ime_code_completion_deferred).call_deferred();
+}
+
 void CodeEdit::add_code_completion_option(CodeCompletionKind p_type, const String &p_display_text, const String &p_insert_text, const Color &p_text_color, const Ref<Resource> &p_icon, const Variant &p_value, int p_location) {
 	ScriptLanguage::CodeCompletionOption completion_option;
 	completion_option.kind = (ScriptLanguage::CodeCompletionKind)p_type;

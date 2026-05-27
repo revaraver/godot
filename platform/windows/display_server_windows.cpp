@@ -32,6 +32,15 @@
 
 #include "drop_target_windows.h"
 #include "os_windows.h"
+
+#ifdef IGNORE
+#undef IGNORE
+#endif
+
+#include "scene/gui/code_edit.h"
+#include "scene/gui/line_edit.h"
+#include "scene/gui/text_edit.h"
+#include "scene/main/scene_tree.h"
 #include "scene/main/window.h"
 #include "wgl_detect_version.h"
 
@@ -107,6 +116,255 @@ static String format_error_message(DWORD id) {
 	LocalFree(messageBuffer);
 
 	return msg;
+}
+
+static constexpr ULONG_PTR REVAR_IME_COPYDATA_REPLACE_BEFORE_CARET = 0x52564952; // "RVIR" / ReVar IME Replace.
+
+struct RevarImeReplaceBeforeCaretPayload {
+	uint32_t version;
+	uint32_t raw_length;
+	uint32_t text_utf16_length;
+};
+
+struct RevarImeReplaceBeforeCaretPayloadV2 {
+	uint32_t version;
+	uint32_t raw_length;
+	uint32_t text_utf16_length;
+	uint32_t expected_raw_utf16_length;
+};
+
+struct RevarImePendingReplace {
+	ObjectID object_id;
+	bool line_edit = false;
+	String expected_raw;
+	String replacement;
+	int attempts = 0;
+};
+
+static Vector<RevarImePendingReplace> revar_ime_pending_replaces;
+static bool revar_ime_pending_replace_scheduled = false;
+
+static bool revar_ime_text_edit_has_expected_before_caret(TextEdit *p_text_edit, const String &p_expected) {
+	if (p_text_edit == nullptr || p_expected.is_empty()) {
+		return false;
+	}
+	const int caret_line = p_text_edit->get_caret_line();
+	const int caret_col = p_text_edit->get_caret_column();
+	if (caret_col < p_expected.length()) {
+		return false;
+	}
+	const String line = p_text_edit->get_line(caret_line);
+	if (caret_col > line.length()) {
+		return false;
+	}
+	return line.substr(caret_col - p_expected.length(), p_expected.length()) == p_expected;
+}
+
+static bool revar_ime_line_edit_has_expected_before_caret(LineEdit *p_line_edit, const String &p_expected) {
+	if (p_line_edit == nullptr || p_expected.is_empty()) {
+		return false;
+	}
+	const int caret_col = p_line_edit->get_caret_column();
+	if (caret_col < p_expected.length()) {
+		return false;
+	}
+	const String text = p_line_edit->get_text();
+	if (caret_col > text.length()) {
+		return false;
+	}
+	return text.substr(caret_col - p_expected.length(), p_expected.length()) == p_expected;
+}
+
+static bool revar_ime_try_apply_replace(Object *p_object, bool p_line_edit, const String &p_expected, const String &p_replacement) {
+	if (p_line_edit) {
+		LineEdit *line_edit = Object::cast_to<LineEdit>(p_object);
+		if (line_edit != nullptr && revar_ime_line_edit_has_expected_before_caret(line_edit, p_expected)) {
+			return line_edit->replace_text_before_caret(p_expected.length(), p_replacement);
+		}
+		if (line_edit != nullptr && !p_expected.is_empty()) {
+			const int caret_col = line_edit->get_caret_column();
+			const String text = line_edit->get_text();
+			const int search_start = MAX(0, caret_col - 128);
+			const String prefix_window = text.substr(search_start, caret_col - search_start);
+			const int local_pos = prefix_window.rfind(p_expected);
+			if (local_pos >= 0) {
+				const int pos = search_start + local_pos;
+				line_edit->set_text(text.substr(0, pos) + p_replacement + text.substr(pos + p_expected.length()));
+				line_edit->set_caret_column(caret_col - p_expected.length() + p_replacement.length());
+				return true;
+			}
+		}
+		return false;
+	}
+	TextEdit *text_edit = Object::cast_to<TextEdit>(p_object);
+	if (text_edit != nullptr && revar_ime_text_edit_has_expected_before_caret(text_edit, p_expected)) {
+		return text_edit->replace_text_before_caret(p_expected.length(), p_replacement);
+	}
+	if (text_edit != nullptr && !p_expected.is_empty()) {
+		const int caret_line = text_edit->get_caret_line();
+		const int caret_col = text_edit->get_caret_column();
+		const String line = text_edit->get_line(caret_line);
+		if (caret_col <= line.length()) {
+			const int search_start = MAX(0, caret_col - 128);
+			const String prefix_window = line.substr(search_start, caret_col - search_start);
+			const int local_pos = prefix_window.rfind(p_expected);
+			if (local_pos >= 0) {
+				const int pos = search_start + local_pos;
+				text_edit->remove_text(caret_line, pos, caret_line, pos + p_expected.length());
+				text_edit->insert_text(p_replacement, caret_line, pos);
+				text_edit->set_caret_line(caret_line);
+				text_edit->set_caret_column(caret_col - p_expected.length() + p_replacement.length());
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+static void revar_ime_schedule_pending_replace();
+
+static void revar_ime_process_pending_replaces() {
+	revar_ime_pending_replace_scheduled = false;
+	for (int i = revar_ime_pending_replaces.size() - 1; i >= 0; --i) {
+		RevarImePendingReplace &pending = revar_ime_pending_replaces.write[i];
+		Object *object = ObjectDB::get_instance(pending.object_id);
+		if (object == nullptr) {
+			revar_ime_pending_replaces.remove_at(i);
+			continue;
+		}
+		if (revar_ime_try_apply_replace(object, pending.line_edit, pending.expected_raw, pending.replacement)) {
+			revar_ime_pending_replaces.remove_at(i);
+			continue;
+		}
+		pending.attempts++;
+		if (pending.attempts >= 8) {
+			revar_ime_pending_replaces.remove_at(i);
+		}
+	}
+	if (!revar_ime_pending_replaces.is_empty()) {
+		revar_ime_schedule_pending_replace();
+	}
+}
+
+static void revar_ime_schedule_pending_replace() {
+	if (revar_ime_pending_replace_scheduled) {
+		return;
+	}
+	revar_ime_pending_replace_scheduled = true;
+	callable_mp_static(revar_ime_process_pending_replaces).call_deferred();
+}
+
+static bool handle_revar_ime_copydata(LPARAM lParam) {
+	COPYDATASTRUCT *copy_data = reinterpret_cast<COPYDATASTRUCT *>(lParam);
+	if (copy_data == nullptr || copy_data->dwData != REVAR_IME_COPYDATA_REPLACE_BEFORE_CARET || copy_data->lpData == nullptr) {
+		return false;
+	}
+	if (copy_data->cbData < sizeof(RevarImeReplaceBeforeCaretPayload)) {
+		return false;
+	}
+
+	const RevarImeReplaceBeforeCaretPayload *payload = reinterpret_cast<const RevarImeReplaceBeforeCaretPayload *>(copy_data->lpData);
+	if (payload->version != 1 && payload->version != 2) {
+		return false;
+	}
+
+	uint32_t expected_raw_utf16_length = 0;
+	size_t header_size = sizeof(RevarImeReplaceBeforeCaretPayload);
+	if (payload->version == 2) {
+		if (copy_data->cbData < sizeof(RevarImeReplaceBeforeCaretPayloadV2)) {
+			return false;
+		}
+		const RevarImeReplaceBeforeCaretPayloadV2 *payload_v2 = reinterpret_cast<const RevarImeReplaceBeforeCaretPayloadV2 *>(copy_data->lpData);
+		expected_raw_utf16_length = payload_v2->expected_raw_utf16_length;
+		header_size = sizeof(RevarImeReplaceBeforeCaretPayloadV2);
+	}
+
+	const size_t expected_size = header_size + (size_t(payload->text_utf16_length) + size_t(expected_raw_utf16_length)) * sizeof(wchar_t);
+	if (copy_data->cbData < expected_size) {
+		return false;
+	}
+
+	SceneTree *scene_tree = SceneTree::get_singleton();
+	if (scene_tree == nullptr || scene_tree->get_root() == nullptr) {
+		return false;
+	}
+
+	Window *root = scene_tree->get_root();
+	Control *focus_owner = nullptr;
+	if (Window *focused_subwindow = root->get_focused_subwindow()) {
+		focus_owner = focused_subwindow->gui_get_focus_owner();
+	}
+	if (focus_owner == nullptr) {
+		focus_owner = root->gui_get_focus_owner();
+	}
+	if (focus_owner == nullptr) {
+		return false;
+	}
+
+	const wchar_t *text_utf16 = reinterpret_cast<const wchar_t *>(reinterpret_cast<const BYTE *>(copy_data->lpData) + header_size);
+	String replacement = String::utf16(reinterpret_cast<const char16_t *>(text_utf16), payload->text_utf16_length);
+	const wchar_t *expected_raw_utf16 = text_utf16 + payload->text_utf16_length;
+	String expected_raw;
+	if (expected_raw_utf16_length > 0) {
+		expected_raw = String::utf16(reinterpret_cast<const char16_t *>(expected_raw_utf16), expected_raw_utf16_length);
+	}
+	const int raw_length = int(payload->raw_length);
+	if (raw_length == 0) {
+		if (replacement.length() != 1) {
+			return false;
+		}
+		if (CodeEdit *code_edit = Object::cast_to<CodeEdit>(focus_owner)) {
+			code_edit->handle_unicode_input(replacement[0]);
+			code_edit->request_revar_ime_code_completion_deferred(false);
+			return true;
+		}
+		if (TextEdit *text_edit = Object::cast_to<TextEdit>(focus_owner)) {
+			text_edit->handle_unicode_input(replacement[0]);
+			return true;
+		}
+		if (LineEdit *line_edit = Object::cast_to<LineEdit>(focus_owner)) {
+			line_edit->insert_text_at_caret(replacement);
+			return true;
+		}
+		return false;
+	}
+	if (raw_length < 0) {
+		return false;
+	}
+
+	if (TextEdit *text_edit = Object::cast_to<TextEdit>(focus_owner)) {
+		if (!expected_raw.is_empty()) {
+			if (revar_ime_try_apply_replace(text_edit, false, expected_raw, replacement)) {
+				return true;
+			}
+			RevarImePendingReplace pending;
+			pending.object_id = text_edit->get_instance_id();
+			pending.line_edit = false;
+			pending.expected_raw = expected_raw;
+			pending.replacement = replacement;
+			revar_ime_pending_replaces.push_back(pending);
+			revar_ime_schedule_pending_replace();
+			return true;
+		}
+		return text_edit->replace_text_before_caret(raw_length, replacement);
+	}
+	if (LineEdit *line_edit = Object::cast_to<LineEdit>(focus_owner)) {
+		if (!expected_raw.is_empty()) {
+			if (revar_ime_try_apply_replace(line_edit, true, expected_raw, replacement)) {
+				return true;
+			}
+			RevarImePendingReplace pending;
+			pending.object_id = line_edit->get_instance_id();
+			pending.line_edit = true;
+			pending.expected_raw = expected_raw;
+			pending.replacement = replacement;
+			revar_ime_pending_replaces.push_back(pending);
+			revar_ime_schedule_pending_replace();
+			return true;
+		}
+		return line_edit->replace_text_before_caret(raw_length, replacement);
+	}
+	return false;
 }
 
 static void track_mouse_leave_event(HWND hWnd) {
@@ -4792,6 +5050,11 @@ LRESULT DisplayServerWindows::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 
 	// Process window messages.
 	switch (uMsg) {
+		case WM_COPYDATA: {
+			if (handle_revar_ime_copydata(lParam)) {
+				return TRUE;
+			}
+		} break;
 		case WM_GETOBJECT: {
 			get_object_received = true;
 		} break;

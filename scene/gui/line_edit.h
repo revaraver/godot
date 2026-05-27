@@ -374,6 +374,7 @@ public:
 	int get_max_length() const;
 
 	void insert_text_at_caret(String p_text);
+	bool replace_text_before_caret(int p_chars, String p_text);
 	void clear();
 
 	void set_caret_mid_grapheme_enabled(const bool p_enabled);

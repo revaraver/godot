@@ -878,6 +878,7 @@ public:
 	void remove_line_at(int p_line, bool p_move_carets_down = true);
 
 	void insert_text_at_caret(const String &p_text, int p_caret = -1);
+	bool replace_text_before_caret(int p_chars, const String &p_text, int p_caret = 0);
 	void insert_text(const String &p_text, int p_line, int p_column, bool p_before_selection_begin = true, bool p_before_selection_end = false);
 	void remove_text(int p_from_line, int p_from_column, int p_to_line, int p_to_column);
 

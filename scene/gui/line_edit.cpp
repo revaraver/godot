@@ -2429,6 +2429,26 @@ void LineEdit::insert_text_at_caret(String p_text) {
 	}
 }
 
+bool LineEdit::replace_text_before_caret(int p_chars, String p_text) {
+	ERR_FAIL_COND_V(p_chars < 0, false);
+	if (!editable || selection.enabled) {
+		return false;
+	}
+
+	const String previous_text = text;
+	const int from_column = MAX(0, caret_column - p_chars);
+	delete_text(from_column, caret_column);
+	set_caret_column(from_column);
+	insert_text_at_caret(p_text);
+
+	if (text != previous_text) {
+		_create_undo_state();
+		_text_changed();
+		queue_redraw();
+	}
+	return true;
+}
+
 void LineEdit::clear_internal() {
 	deselect();
 	_clear_undo_stack();

@@ -4322,6 +4322,35 @@ void TextEdit::insert_text_at_caret(const String &p_text, int p_caret) {
 	end_complex_operation();
 }
 
+bool TextEdit::replace_text_before_caret(int p_chars, const String &p_text, int p_caret) {
+	ERR_FAIL_COND_V(p_chars < 0, false);
+	ERR_FAIL_COND_V(p_caret >= get_caret_count() || p_caret < 0, false);
+	if (!editable || has_selection(p_caret)) {
+		return false;
+	}
+
+	const int from_line = get_caret_line(p_caret);
+	const int from_col = MAX(0, get_caret_column(p_caret) - p_chars);
+	const int to_col = get_caret_column(p_caret);
+
+	begin_complex_operation();
+	_remove_text(from_line, from_col, from_line, to_col);
+	set_caret_column(from_col, false, p_caret);
+
+	int new_line = from_line;
+	int new_column = from_col;
+	_insert_text(from_line, from_col, p_text, &new_line, &new_column);
+	_update_scrollbars();
+
+	set_caret_line(new_line, false, true, -1, p_caret);
+	set_caret_column(new_column, true, p_caret);
+	if (has_ime_text()) {
+		_update_ime_text();
+	}
+	end_complex_operation();
+	return true;
+}
+
 void TextEdit::insert_text(const String &p_text, int p_line, int p_column, bool p_before_selection_begin, bool p_before_selection_end) {
 	ERR_FAIL_INDEX(p_line, text.size());
 	ERR_FAIL_INDEX(p_column, text[p_line].length() + 1);
